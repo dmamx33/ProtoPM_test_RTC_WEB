@@ -4,7 +4,7 @@
  * @Email:  daniel.murrieta-alvarez@alumni.fh-aachen.de
  * @Filename: main.cpp
  * @Last modified by:   daniel
- * @Last modified time: 2021-03-12T15:00:20+01:00
+ * @Last modified time: 2021-03-19T03:23:50+01:00
  * @License: CC by-sa
  */
 /////////////################# headers #####################////////////////
@@ -19,14 +19,15 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include "time.h"
+#include <stdlib.h> //For future use in weather forecasting
+#include <stdio.h> //For future use in weather forecasting
+
 //#include "esp_task_wdt.h"
 //#include "soc/timer_group_struct.h"
 //#include "soc/timer_group_reg.h"
-//#include "WeatherStat_RTC.h"
+#include "WeatherStat_NTP.h"
 //#include <DS3231.h>
-uint8_t bsec_config_iaq[] = {
-#include "config/generic_33v_3s_4d/bsec_iaq.txt"
-};
 /////////////################# directives #####################////////////////
 #define Number_susc_sens 11
 #define STATE_SAVE_PERIOD UINT32_C(360 * 60 * 1000) // 360 minutes - 4 times a day
@@ -37,7 +38,11 @@ int PWMchannel = 0;
 int i = 0;
 char flag=0;
 boolean flag_inter_loop=false;
-const char * intro = "Time[ms],r_t[°C],p[hPa],r_hum[%],gas[Ohm],IAQ,IAQacc,temp[°C],h[%],S_IAQ,CO2_equ,bre_VOC,Gas%";
+//const char * intro = "Time[ms],r_t[°C],p[hPa],r_hum[%],gas[Ohm],IAQ,IAQacc,temp[°C],h[%],S_IAQ,CO2_equ,bre_VOC,Gas%";
+const char * intro = "Time[ms],p[hPa],gas[Ohm],IAQ,IAQacc,temp[°C],h[%],S_IAQ,CO2_equ,bre_VOC,Gas%";
+uint8_t bsec_config_iaq[] = {
+#include "config/generic_33v_3s_4d/bsec_iaq.txt"
+};
 uint8_t bsecState[BSEC_MAX_STATE_BLOB_SIZE] = {0};
 uint16_t stateUpdateCounter = 0;
 String output;
@@ -58,6 +63,10 @@ void updateState(void);
 const char *ssid = "FRITZ!Box 6591 Cable SW";         // replace with your SSID
 const char *password = "62407078731195560963"; // replace with your Password
 AsyncWebServer server(80);
+/////////////################# NTP Client Specific #####################///////
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600; //Germany is GMT +1, expressed in seconds
+const int   daylightOffset_sec = 00; // There is one extra hour in DST
 /////////////################# Arduino sh%& #####################///////////////
 TaskHandle_t Task2;
 TaskHandle_t Task1;
@@ -76,15 +85,18 @@ void setup() {
         //         rtc.adjust(DateTime(__DATE__, __TIME__));
         //         Serial.println("RTC Found");
         // }
+
 ///SPIFSSS begin and check
         if(!SPIFFS.begin()) {
                 Serial.println("An Error has occurred while mounting SPIFFS");
                 return;
         }
         else Serial.println("SPIFFS Mounted correctly");
+
 /////PWM Settings
         ledcAttachPin(led_gpio, PWMchannel); // assign a led pins to a channel
         ledcSetup(PWMchannel, 10000, 10); // 12 kHz PWM, 8-bit resolution
+
 ////// Wifi Configs
         WiFi.begin(ssid, password);
         while (WiFi.status() != WL_CONNECTED)
@@ -97,6 +109,10 @@ void setup() {
         Serial.println(WiFi.SSID());
         Serial.print("IP address:");
         Serial.print(WiFi.localIP());
+
+/////Initialize BME680 Sensor
+configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
 /////Initialize BME680 Sensor
         iaqSensor.begin(BME680_I2C_ADDR_SECONDARY, Wire);
         output = "\nBSEC library version " + String(iaqSensor.version.major) + "." + String(iaqSensor.version.minor) + "." + String(iaqSensor.version.major_bugfix) + "." + String(iaqSensor.version.minor_bugfix);
@@ -160,18 +176,30 @@ void setup() {
 }
 /////////////################# LOOP Executed in Core 0 #####################////////////////
 void loop2(void *parameter) {
-
+  #define IN_NUMBERS 1
+  #define IN_LETTERS 2
         while(1) {
                 yield();
                 //Serial.print("---### LOOP2");
                 //Serial.println(i);//
-                unsigned long time_trigger = millis();
+                //unsigned long time_trigger = millis();
                 if (iaqSensor.run()) {   // If new data is available
-                        output = String(time_trigger);
-                        output += ", " + String(iaqSensor.rawTemperature);
+                        // tm timeinfo;
+                        // if(!getLocalTime(&timeinfo)) {
+                        //         Serial.println("Failed to obtain time");
+                        //         output = String(time_trigger);
+                        // }
+                        // else
+                        // {
+                        //   output = String(timeinfo.tm_hour)+":";
+                        //   output += String(timeinfo.tm_min)+":";
+                        //   output += String(timeinfo.tm_sec);
+                        // }
+                        //output += ", " + String(iaqSensor.rawTemperature);
+                        output = getZeit();
                         press_web = String(iaqSensor.pressure/100);
                         output += ", " + press_web;
-                        output += ", " + String(iaqSensor.rawHumidity);
+                        //output += ", " + String(iaqSensor.rawHumidity);
                         output += ", " + String(iaqSensor.gasResistance);
                         iaq_web = String(iaqSensor.iaq);
                         output += ", " + iaq_web;
@@ -184,9 +212,12 @@ void loop2(void *parameter) {
                         output += ", " + String(iaqSensor.co2Equivalent);
                         output += ", " + String(iaqSensor.breathVocEquivalent);
                         output += ", " + String(iaqSensor.gasPercentage);
-                        Serial.println(' ');
+
+                        Serial.println( getDatum(IN_NUMBERS) );
+                        //Serial.println(getMonat());//Check the month
                         Serial.println(intro);
                         Serial.println(output);
+                        Serial.println(' ');
                         updateState();
 
                 } else {

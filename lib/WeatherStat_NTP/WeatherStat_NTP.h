@@ -4,15 +4,15 @@
  * @Email:  daniel.murrieta-alvarez@alumni.fh-aachen.de
  * @Filename: RoboMowerTime.h
  * @Last modified by:   daniel
- * @Last modified time: 2021-03-19T01:04:55+01:00
+ * @Last modified time: 2021-03-19T02:18:12+01:00
  * @License: CC by-sa
  */
 
-
-#include <Arduino.h>
-#ifndef WeatherStat_RTC_h
-#define WeatherStat_RTC_h
-
+#ifndef WeatherStat_NTP_h
+#define WeatherStat_NTP_h
+#define IN_NUMBERS 1
+#define IN_LETTERS 2
+//include <Arduino.h>
 // #define SECONDS 0
 // #define MINUTES 1
 // #define HOURS 2
@@ -20,8 +20,6 @@
 // #define MONTH 4
 // #define YEAR 5
 //const uint8_t DaysPerMonth[12]={31,28,31,30,31,30,31,31,30,31,30,31};
-//char daysOfTheWeek[7][12] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-
 // January - 31 days
 // February - 28 days in a common year and 29 days in leap years
 // March - 31 days
@@ -35,10 +33,8 @@
 // November - 30 days
 // December - 31 days
 
-
-// void Read_RTC(uint8_t* objeto_fecha);
-// boolean Check_Timer(uint8_t* );
-// void Transfer_to_the_right(uint8_t* Source,uint8_t* Receipt);
-// void Clear_Timer(uint8_t*timer);
+String getZeit(void);
+String getDatum(uint8_t ShowMode);
+int getMonat(void);
 
 #endif
