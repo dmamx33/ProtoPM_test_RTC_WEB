@@ -1,4 +1,4 @@
-# WeatherStat v1.0
+# WeatherStat v1.1
 Personal Weather Station - Mechatronik Projekt 2020 Bosch BME680
 
 Working Stuff:
